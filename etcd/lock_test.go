@@ -1,4 +1,4 @@
-package etcdclient
+package etcd
 
 import (
 	"context"
@@ -32,27 +32,28 @@ func TestDlock(t *testing.T) {
 	lock2 := "/lock"
 	lock3 := "/lock/b"
 
+	register := Register{}
 	t.Logf("locking %s", lock1)
-	err := Lock(lock1, time.Second)
+	err := register.Lock(lock1, time.Second)
 	if err != nil {
 		t.Errorf("lock %s failed: %s", lock1, err)
 	}
 
 	t.Logf("locking %s again", lock1)
-	err = Lock(lock1, time.Second*5)
+	err = register.Lock(lock1, time.Second*5)
 	if err != context.DeadlineExceeded {
 		t.Errorf("lock should timeout! %s", err)
 	}
 
 	t.Logf("locking %s", lock2)
-	err = Lock(lock2, time.Second*5)
+	err = register.Lock(lock2, time.Second*5)
 	if err != context.DeadlineExceeded {
 		t.Errorf("lock1 owns lock2, lock should timeout! %s", err)
 	}
 
 	done := make(chan struct{})
 	go func() {
-		err = Lock(lock2, time.Hour)
+		err = register.Lock(lock2, time.Hour)
 		if err != nil {
 			t.Errorf("lock %s failed: %s", lock2, err)
 		}
@@ -61,20 +62,20 @@ func TestDlock(t *testing.T) {
 	}()
 
 	t.Logf("unlocking %s", lock1)
-	err = Unlock(lock1)
+	err = register.Unlock(lock1)
 	if err != nil {
 		t.Errorf("unlock %s failed: %s", lock1, err)
 	}
 	<-done
 
 	t.Logf("locking %s", lock3)
-	err = Lock(lock3, time.Second)
+	err = register.Lock(lock3, time.Second)
 	if err != nil {
 		t.Errorf("lock %s failed: %s", lock3, err)
 	}
 
 	t.Logf("unlock %s", lock3)
-	err = Unlock(lock3)
+	err = register.Unlock(lock3)
 	if err != nil {
 		t.Errorf("unlock %s failed: %s", lock3, err)
 	}
@@ -103,7 +104,7 @@ func TestDlock(t *testing.T) {
 
 	t.Logf("closing session")
 	lockSession.Close()
-	err = Lock(lock1, time.Hour)
+	err = register.Lock(lock1, time.Hour)
 	if err == nil {
 		t.Errorf("expeting lock error")
 	} else {
@@ -113,11 +114,11 @@ func TestDlock(t *testing.T) {
 	startReconnect <- struct{}{}
 	<-startReconnect
 
-	err = Lock(lock1, time.Hour)
+	err = register.Lock(lock1, time.Hour)
 	if err != nil {
 		t.Errorf("lock error: %s", err)
 	}
-	err = Unlock(lock1)
+	err = register.Unlock(lock1)
 	if err != nil {
 		t.Errorf("unlock error: %s", err)
 	}

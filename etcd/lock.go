@@ -1,4 +1,4 @@
-package etcdclient
+package etcd
 
 import (
 	"context"
@@ -23,19 +23,19 @@ var (
 
 // 分布互斥锁添加及锁定，lockPath代表锁路径
 // 为避免锁错误，必须设置超时等待时间
-func Lock(lockPath string, duration time.Duration) error {
-	for strings.HasSuffix(lockPath, "/") {
-		lockPath = lockPath[:len(lockPath)-1]
+func (*Register) Lock(path string, duration time.Duration) error {
+	for strings.HasSuffix(path, "/") {
+		path = path[:len(path)-1]
 	}
-	if len(lockPath) == 0 || !strings.HasPrefix(lockPath, "/") {
+	if len(path) == 0 || !strings.HasPrefix(path, "/") {
 		panic("invalid lock path")
 	}
 
 	// 获取/初始化锁
 	lockMutex.RLock()
 	defer lockMutex.RUnlock()
-	lk := &lock{llock: 0, rlock: concurrency.NewMutex(lockSession, lockPath)}
-	v, _ := lockMap.LoadOrStore(lockPath, lk)
+	lk := &lock{llock: 0, rlock: concurrency.NewMutex(lockSession, path)}
+	v, _ := lockMap.LoadOrStore(path, lk)
 	realLock := v.(*lock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -64,20 +64,20 @@ func Lock(lockPath string, duration time.Duration) error {
 }
 
 // 分布互斥锁添加及解锁
-func Unlock(lockPath string) error {
-	for strings.HasSuffix(lockPath, "/") {
-		lockPath = lockPath[:len(lockPath)-1]
+func (*Register) Unlock(path string) error {
+	for strings.HasSuffix(path, "/") {
+		path = path[:len(path)-1]
 	}
-	if len(lockPath) == 0 || !strings.HasPrefix(lockPath, "/") {
+	if len(path) == 0 || !strings.HasPrefix(path, "/") {
 		panic("invalid lock path")
 	}
 
 	// 获取
 	lockMutex.RLock()
 	defer lockMutex.RUnlock()
-	v, ok := lockMap.Load(lockPath)
+	v, ok := lockMap.Load(path)
 	if !ok {
-		return fmt.Errorf("锁路径(%s)不存在", lockPath)
+		return fmt.Errorf("锁路径(%s)不存在", path)
 	}
 	realLock := v.(*lock)
 

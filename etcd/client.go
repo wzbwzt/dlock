@@ -1,4 +1,4 @@
-package etcdclient
+package etcd
 
 import (
 	"context"
@@ -10,27 +10,60 @@ import (
 	"github.com/micro/go-micro/util/log"
 )
 
+type Register struct {
+	endpoint []string
+	path     string
+	timeout  time.Duration
+}
+
+type Option func(*Register)
+
 var (
 	etcdcli        *clientv3.Client
 	lockSession    *concurrency.Session
 	sessionTimeout = 15
 )
 
-func InitClient(endpoint []string) *clientv3.Client {
+func NewRegister(opts ...Option) *Register {
+	register := &Register{}
+	for _, opt := range opts {
+		opt(register)
+	}
+	if register.timeout == 0 {
+		register.timeout = 5
+	}
+	register.Init()
+
+	return register
+}
+
+func WithEndpoint(endpoint []string) Option {
+	return func(r *Register) {
+		r.endpoint = endpoint
+	}
+}
+
+func WithTimeOut(duration time.Duration) Option {
+	return func(r *Register) {
+		r.timeout = duration
+	}
+}
+
+func (r *Register) Init() {
 	success := make(chan struct{})
 	go func() {
 		select {
 		case <-success:
 			return
 		case <-time.After(time.Second * 5):
-			panic(fmt.Errorf("与etcd服务[%v]建立会话失败", endpoint))
+			panic(fmt.Errorf("与etcd服务[%v]建立会话失败", r.endpoint))
 		}
 	}()
 
 	var err error
 	etcdcli, err = clientv3.New(clientv3.Config{
-		Endpoints:   endpoint,
-		DialTimeout: time.Second * 5,
+		Endpoints:   r.endpoint,
+		DialTimeout: r.timeout,
 	})
 	if err != nil {
 		panic(err)
@@ -72,5 +105,9 @@ func InitClient(endpoint []string) *clientv3.Client {
 			}
 		}
 	}()
+}
+
+//获取etcd注册客户端
+func (r *Register) GetEtcdClient() *clientv3.Client {
 	return etcdcli
 }
